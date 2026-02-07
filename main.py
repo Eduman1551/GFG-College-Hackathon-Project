@@ -12,6 +12,10 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
+from PIL import Image
+import pytesseract
+from langchain_core.documents import Document
+
 # --- Database & Auth Imports ---
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -29,6 +33,8 @@ from langchain_community.llms import Ollama
 # =====================================================
 # CONFIGURATION
 # =====================================================
+
+
 SECRET_KEY = "HACKATHON_SECRET_KEY_CHANGE_ME"  # <--- Change this for production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
@@ -41,6 +47,11 @@ VECTORSTORE_PATH = "vectorstore"
 os.makedirs(BASE_DATA_PATH, exist_ok=True)
 os.makedirs(UPLOAD_PATH, exist_ok=True)
 os.makedirs(VECTORSTORE_PATH, exist_ok=True)
+# =====================================================
+# OCR CONFIGURATION
+# =====================================================
+# Update this path if you installed Tesseract somewhere else
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # =====================================================
 # DATABASE SETUP (SQLite)
@@ -138,28 +149,66 @@ def load_vectorstore():
 
 vectorstore = load_vectorstore()
 
-def ingest_pdfs_from_folder(folder_path: str):
+def extract_text_from_image(image_path: str):
+    """
+    Uses Tesseract OCR to extract text from an image file.
+    """
+    try:
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image)
+        return text
+    except Exception as e:
+        print(f"Error processing image {image_path}: {e}")
+        return ""
+    
+def ingest_files_from_folder(folder_path: str):
     global vectorstore
     documents = []
+    
     if not os.path.exists(folder_path):
         return
 
     for file in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file)
+        
+        # 1. Handle PDFs
         if file.endswith(".pdf"):
-            pdf_path = os.path.join(folder_path, file)
-            loader = PyPDFLoader(pdf_path)
-            docs = loader.load()
-            for d in docs:
-                d.metadata["source"] = file
-            documents.extend(docs)
+            loader = PyPDFLoader(file_path)
+            try:
+                docs = loader.load()
+                # Check if PDF text is empty (scanned PDF)
+                if not docs or len(docs[0].page_content) < 10:
+                    print(f"PDF {file} seems empty/scanned. Skipping OCR for now (requires extra libraries).")
+                    # Note: Full PDF OCR requires 'pdf2image' + 'poppler', which is complex to install.
+                    # For a hackathon, often easier to convert PDF to JPG manually or use a paid API.
+                else:
+                    for d in docs:
+                        d.metadata["source"] = file
+                    documents.extend(docs)
+            except Exception as e:
+                print(f"Error loading PDF {file}: {e}")
+
+        # 2. Handle Images (JPG, PNG) - NEW FEATURE
+        elif file.lower().endswith((".png", ".jpg", ".jpeg")):
+            print(f"Processing image: {file}")
+            extracted_text = extract_text_from_image(file_path)
+            
+            if extracted_text.strip():
+                # Create a LangChain Document manually
+                doc = Document(
+                    page_content=extracted_text,
+                    metadata={"source": file}
+                )
+                documents.append(doc)
 
     if documents:
         chunks = text_splitter.split_documents(documents)
         vectorstore.add_documents(chunks)
         vectorstore.save_local(VECTORSTORE_PATH)
+        print(f"Ingested {len(documents)} new documents.")
 
 # Initial Load
-ingest_pdfs_from_folder(BASE_DATA_PATH)
+ingest_files_from_folder(BASE_DATA_PATH)
 
 # =====================================================
 # PYDANTIC MODELS (Schemas)
@@ -211,22 +260,23 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- 3. Upload PDF (PROTECTED) ---
+# --- 3. Upload File (PDF or Image) ---
 @app.post("/upload")
-async def upload_pdf(
+async def upload_file(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user) # <--- Forces Login
+    current_user: User = Depends(get_current_user)
 ):
+    # Save the file
     save_path = os.path.join(UPLOAD_PATH, file.filename)
-    
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    ingest_pdfs_from_folder(UPLOAD_PATH)
+    # Trigger ingestion (now supports images!)
+    ingest_files_from_folder(UPLOAD_PATH)
 
     return {
         "status": "success",
-        "message": f"File uploaded by {current_user.username}",
+        "message": f"File {file.filename} uploaded and processed by {current_user.username}",
         "filename": file.filename
     }
 
