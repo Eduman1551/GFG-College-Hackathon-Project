@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Buddy Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .glass { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(10px); }
+        /* Chat Bubble Styles */
+        .user-msg { background-color: #3b82f6; align-self: flex-end; }
+        .ai-msg { background-color: #334155; align-self: flex-start; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <div class="w-64 bg-slate-900 border-r border-slate-700 flex flex-col p-4">
+        <h1 class="text-xl font-bold text-purple-400 mb-8">🧠 Study Buddy</h1>
+        <nav class="flex-1 space-y-2">
+            <button onclick="setView('chat')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">💬 Chat</button>
+            <button onclick="setView('mindmap')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">🕸️ Mind Map</button>
+            <button onclick="setView('files')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">📂 Files</button>
+        </nav>
+        <button onclick="logout()" class="p-2 text-red-400 hover:text-red-300">Logout</button>
+    </div>
+
+    <div class="flex-1 flex flex-col relative">
+        
+        <div id="view-chat" class="flex-1 flex flex-col h-full p-4">
+            <div id="chat-box" class="flex-1 overflow-y-auto space-y-4 p-4 mb-4 flex flex-col">
+                <div class="ai-msg p-3 rounded-lg max-w-xl">Hello! I am your Academic Study Buddy. Upload notes or ask me anything.</div>
+            </div>
+            
+            <div class="flex gap-2">
+                <input type="text" id="chat-input" class="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-purple-500" placeholder="Ask a question..." onkeypress="handleEnter(event)">
+                <button onclick="sendMessage()" class="bg-purple-600 px-6 rounded hover:bg-purple-500 transition">Send</button>
+            </div>
+        </div>
+
+        <div id="view-mindmap" class="hidden flex-1 flex-col h-full p-4">
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="mindmap-topic" class="flex-1 p-2 rounded bg-slate-800 border border-slate-700" placeholder="Enter topic (e.g. Photosynthesis)">
+                <button onclick="generateMindMap()" class="bg-green-600 px-6 rounded hover:bg-green-500">Generate Map</button>
+            </div>
+            <div id="mermaid-canvas" class="flex-1 bg-white rounded-lg p-4 text-black overflow-auto flex items-center justify-center">
+                <p class="text-slate-500">Enter a topic to generate a diagram...</p>
+            </div>
+        </div>
+
+        <div id="view-files" class="hidden flex-1 p-8">
+            <h2 class="text-2xl font-bold mb-4">Upload Documents</h2>
+            <div class="border-2 border-dashed border-slate-600 rounded-xl p-10 text-center hover:border-purple-500 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
+                <p class="text-slate-400">Click to upload PDF or Image</p>
+                <input type="file" id="file-upload" class="hidden" onchange="uploadFile()">
+            </div>
+            <p id="upload-status" class="mt-4 text-center text-sm"></p>
+        </div>
+
+    </div>
+
+    <script>
+        const BASE_URL = "http://127.0.0.1:8000";
+        const token = localStorage.getItem("access_token");
+
+        // Auth Check
+        if (!token) window.location.href = "login.html";
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            window.location.href = "login.html";
+        }
+
+        // View Switching
+        function setView(viewName) {
+            ['chat', 'mindmap', 'files'].forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+            });
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+        }
+
+        // --- Feature 1: Chat ---
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value;
+            if (!text) return;
+
+            // Add User Message
+            const box = document.getElementById('chat-box');
+            box.innerHTML += `<div class="user-msg p-3 rounded-lg max-w-xl mb-2">${text}</div>`;
+            input.value = "";
+            box.scrollTop = box.scrollHeight;
+
+            try {
+                const res = await fetch(`${BASE_URL}/ask`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ question: text })
+                });
+
+                const data = await res.json();
+                
+                // Format Sources
+                let sourceHtml = "";
+                if(data.sources && data.sources.length > 0) {
+                    sourceHtml = `<div class="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">Sources: ${data.sources.join(', ')}</div>`;
+                }
+
+                box.innerHTML += `<div class="ai-msg p-3 rounded-lg max-w-xl mb-2">${data.answer} ${sourceHtml}</div>`;
+                box.scrollTop = box.scrollHeight;
+
+            } catch (err) {
+                console.error(err);
+                alert("Error connecting to AI");
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // --- Feature 2: Mind Map ---
+        mermaid.initialize({ startOnLoad: true });
+
+        async function generateMindMap() {
+            const topic = document.getElementById('mindmap-topic').value;
+            const container = document.getElementById('mermaid-canvas');
+            container.innerHTML = "Generating...";
+
+            try {
+                const res = await fetch(`${BASE_URL}/generate_mindmap`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ topic: topic })
+                });
+
+                const data = await res.json();
+                
+                // Render Mermaid
+                container.innerHTML = `<div class="mermaid">${data.mermaid_code}</div>`;
+                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+
+            } catch (err) {
+                container.innerHTML = "Error generating map.";
+            }
+        }
+
+        // --- Feature 3: Upload ---
+        async function uploadFile() {
+            const fileInput = document.getElementById('file-upload');
+            const file = fileInput.files[0];
+            const status = document.getElementById('upload-status');
+
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            status.innerText = "Uploading & Indexing...";
+
+            try {
+                const res = await fetch(`${BASE_URL}/upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if(res.ok) {
+                    status.innerText = "✅ Upload Successful!";
+                    status.className = "mt-4 text-center text-sm text-green-400";
+                } else {
+                    status.innerText = "❌ Upload Failed";
+                    status.className = "mt-4 text-center text-sm text-red-400";
+                }
+            } catch (err) {
+                status.innerText = "❌ Network Error";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Buddy Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen">
+
+    <div class="glass p-8 rounded-2xl shadow-2xl w-96">
+        <h1 class="text-3xl font-bold text-center mb-6 text-purple-400">Study Buddy</h1>
+        
+        <div class="flex justify-center mb-6 bg-slate-800 rounded-lg p-1">
+            <button id="tab-login" class="w-1/2 py-1 rounded-md bg-purple-600 text-white transition" onclick="switchTab('login')">Login</button>
+            <button id="tab-signup" class="w-1/2 py-1 rounded-md text-slate-400 hover:text-white transition" onclick="switchTab('signup')">Sign Up</button>
+        </div>
+
+        <form id="auth-form" onsubmit="handleAuth(event)">
+            <div class="mb-4">
+                <label class="block text-sm mb-1">Username</label>
+                <input type="text" id="username" class="w-full p-2 rounded bg-slate-800 border border-slate-700 focus:border-purple-500 outline-none" required>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm mb-1">Password</label>
+                <input type="password" id="password" class="w-full p-2 rounded bg-slate-800 border border-slate-700 focus:border-purple-500 outline-none" required>
+            </div>
+            <button type="submit" class="w-full py-2 bg-purple-600 hover:bg-purple-500 rounded font-bold transition">Enter System</button>
+        </form>
+        <p id="msg" class="text-center mt-4 text-sm text-red-400"></p>
+    </div>
+
+    <script>
+        let mode = 'login';
+        const BASE_URL = "http://127.0.0.1:8000";
+
+        function switchTab(newMode) {
+            mode = newMode;
+            document.getElementById('tab-login').className = mode === 'login' ? "w-1/2 py-1 rounded-md bg-purple-600 text-white" : "w-1/2 py-1 rounded-md text-slate-400";
+            document.getElementById('tab-signup').className = mode === 'signup' ? "w-1/2 py-1 rounded-md bg-purple-600 text-white" : "w-1/2 py-1 rounded-md text-slate-400";
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+            msg.innerText = "Processing...";
+
+            try {
+                if (mode === 'signup') {
+                    // REGISTER
+                    const res = await fetch(`${BASE_URL}/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: user, password: pass })
+                    });
+                    if (!res.ok) throw new Error("Username taken or invalid data");
+                    msg.innerText = "Account created! Please log in.";
+                    msg.className = "text-center mt-4 text-sm text-green-400";
+                    switchTab('login');
+                } else {
+                    // LOGIN (Get Token)
+                    const formData = new FormData();
+                    formData.append('username', user);
+                    formData.append('password', pass);
+
+                    const res = await fetch(`${BASE_URL}/token`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!res.ok) throw new Error("Invalid credentials");
+                    
+                    const data = await res.json();
+                    localStorage.setItem("access_token", data.access_token);
+                    window.location.href = "dashboard.html";
+                }
+            } catch (err) {
+                msg.innerText = err.message;
+                msg.className = "text-center mt-4 text-sm text-red-400";
+            }
+        }
+    </script>
+</body>
+</html>

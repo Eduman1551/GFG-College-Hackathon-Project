@@ -10,6 +10,8 @@ from typing import List, Optional
 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+
 from pydantic import BaseModel
 
 from PIL import Image
@@ -231,6 +233,14 @@ class MindMapRequest(BaseModel):
 # API ENDPOINTS
 # =====================================================
 app = FastAPI(title="Academic Second Brain API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows ALL origins (perfect for hackathons)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 # --- 1. Register User ---
 @app.post("/register", status_code=status.HTTP_201_CREATED)
