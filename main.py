@@ -224,6 +224,9 @@ class Token(BaseModel):
 class QuestionRequest(BaseModel):
     question: str
 
+class MindMapRequest(BaseModel):
+    topic: str
+
 # =====================================================
 # API ENDPOINTS
 # =====================================================
@@ -316,4 +319,43 @@ async def ask_question(
         "answer": answer,
         "sources": sources,
         "user": current_user.username
+    }
+
+# --- 5. Generate Mind Map (PROTECTED) ---
+@app.post("/generate_mindmap")
+async def generate_mindmap(
+    payload: MindMapRequest,
+    current_user: User = Depends(get_current_user)
+):
+    topic = payload.topic
+
+    # 1. Retrieve relevant content
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    docs = retriever.invoke(topic)
+    context = "\n\n".join([d.page_content for d in docs])
+
+    # 2. The Strict Prompt for Mermaid.js
+    prompt = f"""
+    You are an expert at creating mind maps.
+    Based ONLY on the context below, generate a Mermaid.js mindmap code for the topic: '{topic}'.
+    
+    Rules:
+    1. Start with 'graph TD' (Top-Down).
+    2. Use square brackets for nodes: A[Main Topic] --> B[Subtopic]
+    3. Do NOT use special characters or quotes inside the brackets that might break syntax.
+    4. Return ONLY the code. No markdown backticks (```), no explanations.
+    
+    Context:
+    {context}
+    """
+
+    # 3. Get the code from LLM
+    mindmap_code = llm.invoke(prompt)
+    
+    # Clean up common LLM mistakes (optional but recommended)
+    mindmap_code = mindmap_code.replace("```mermaid", "").replace("```", "").strip()
+
+    return {
+        "topic": topic,
+        "mermaid_code": mindmap_code
     }
