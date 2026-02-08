@@ -4,6 +4,7 @@
 # =====================================================
 
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -331,7 +332,7 @@ async def ask_question(
         "user": current_user.username
     }
 
-# --- 5. Generate Mind Map (PROTECTED) ---
+# --- 5. Generate Mind Map (IMPROVED) ---
 @app.post("/generate_mindmap")
 async def generate_mindmap(
     payload: MindMapRequest,
@@ -339,33 +340,45 @@ async def generate_mindmap(
 ):
     topic = payload.topic
 
-    # 1. Retrieve relevant content
+    # 1. Retrieve context
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     docs = retriever.invoke(topic)
     context = "\n\n".join([d.page_content for d in docs])
 
-    # 2. The Strict Prompt for Mermaid.js
+    # 2. STRICTER Prompt
     prompt = f"""
-    You are an expert at creating mind maps.
-    Based ONLY on the context below, generate a Mermaid.js mindmap code for the topic: '{topic}'.
+    You are a code generator for Mermaid.js diagrams.
+    Generate a flow chart for the topic: '{topic}'.
     
-    Rules:
-    1. Start with 'graph TD' (Top-Down).
-    2. Use square brackets for nodes: A[Main Topic] --> B[Subtopic]
-    3. Do NOT use special characters or quotes inside the brackets that might break syntax.
-    4. Return ONLY the code. No markdown backticks (```), no explanations.
+    CRITICAL RULES:
+    1. Start immediately with 'graph TD'.
+    2. Use ONLY alphanumeric characters and spaces inside node labels. 
+       - BAD: A[Data (Raw)] 
+       - GOOD: A[Data Raw]
+    3. Do NOT use parentheses (), quotes "", or brackets [] inside the node text.
+    4. Do NOT include markdown ticks (```).
+    5. Do NOT write explanations. Return ONLY the code.
     
-    Context:
+    Context to use:
     {context}
     """
 
-    # 3. Get the code from LLM
-    mindmap_code = llm.invoke(prompt)
+    # 3. Get response
+    raw_response = llm.invoke(prompt)
     
-    # Clean up common LLM mistakes (optional but recommended)
-    mindmap_code = mindmap_code.replace("```mermaid", "").replace("```", "").strip()
+    # 4. Aggressive Cleaning Logic
+    # Remove markdown code blocks
+    clean_code = raw_response.replace("```mermaid", "").replace("```", "")
+    
+    # Regex to find where the graph starts (ignores intro text)
+    match = re.search(r"graph TD", clean_code)
+    if match:
+        clean_code = clean_code[match.start():]
+        
+    # Final cleanup
+    clean_code = clean_code.strip()
 
     return {
         "topic": topic,
-        "mermaid_code": mindmap_code
+        "mermaid_code": clean_code
     }
