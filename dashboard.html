@@ -3,59 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Buddy Dashboard</title>
+    <title>Second Brain Dashboard</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    
+    <script src="https://unpkg.com/3d-force-graph"></script>
+
     <style>
         body { background-color: #0f172a; color: #e2e8f0; }
-        .glass { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(10px); }
-        /* Chat Bubble Styles */
-        .user-msg { background-color: #3b82f6; align-self: flex-end; }
-        .ai-msg { background-color: #334155; align-self: flex-start; }
+        /* Custom scrollbar for chat */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
-</head>
-<body class="flex h-screen overflow-hidden">
 
-    <div class="w-64 bg-slate-900 border-r border-slate-700 flex flex-col p-4">
-        <h1 class="text-xl font-bold text-purple-400 mb-8">🧠 Study Buddy</h1>
+</head>
+<body class="flex h-screen overflow-hidden text-sm">
+
+    <div class="w-64 bg-slate-900 border-r border-slate-700 flex flex-col p-4 z-10">
+        <h1 class="text-xl font-bold text-purple-400 mb-8 tracking-wider">🧠 Second Brain</h1>
         <nav class="flex-1 space-y-2">
-            <button onclick="setView('chat')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">💬 Chat</button>
-            <button onclick="setView('mindmap')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">🕸️ Mind Map</button>
-            <button onclick="setView('files')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition">📂 Files</button>
+            <button onclick="setView('chat')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition flex items-center gap-3">💬 Chat</button>
+            <button onclick="setView('mindmap')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition flex items-center gap-3">🕸️ Mind Map</button>
+            <button onclick="setView('files')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition flex items-center gap-3">📂 Files</button>
+            <button onclick="setView('graph')" class="w-full text-left p-3 rounded hover:bg-slate-800 transition flex items-center gap-3">🔗 Graph View</button>
         </nav>
-        <button onclick="logout()" class="p-2 text-red-400 hover:text-red-300">Logout</button>
+        <button onclick="logout()" class="p-2 text-red-400 hover:text-red-300 border border-transparent hover:border-red-900 rounded transition">Logout</button>
     </div>
 
-    <div class="flex-1 flex flex-col relative">
+    <div class="flex-1 flex flex-col relative bg-slate-900">
         
-        <div id="view-chat" class="flex-1 flex flex-col h-full p-4">
-            <div id="chat-box" class="flex-1 overflow-y-auto space-y-4 p-4 mb-4 flex flex-col">
-                <div class="ai-msg p-3 rounded-lg max-w-xl">Hello! I am your Academic Study Buddy. Upload notes or ask me anything.</div>
+        <div id="view-chat" class="flex-1 flex flex-col h-full p-4 relative">
+            <div id="chat-box" class="flex-1 overflow-y-auto space-y-4 p-4 mb-4 flex flex-col pb-20">
+                <div class="p-3 rounded-lg max-w-xl bg-slate-800 text-slate-200 self-start border border-slate-700">
+                    Hello! I am your Academic Second Brain. Upload notes or ask me anything.
+                </div>
             </div>
-            
-            <div class="flex gap-2">
-                <input type="text" id="chat-input" class="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-purple-500" placeholder="Ask a question..." onkeypress="handleEnter(event)">
-                <button onclick="sendMessage()" class="bg-purple-600 px-6 rounded hover:bg-purple-500 transition">Send</button>
+            <div class="absolute bottom-4 left-4 right-4 flex gap-2">
+                <input type="text" id="chat-input" class="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-purple-500 text-white shadow-lg" placeholder="Ask a question..." onkeypress="handleEnter(event)">
+                <button onclick="sendMessage()" class="bg-purple-600 px-6 rounded hover:bg-purple-500 transition font-bold shadow-lg">Send</button>
             </div>
         </div>
 
         <div id="view-mindmap" class="hidden flex-1 flex-col h-full p-4">
             <div class="flex gap-2 mb-4">
-                <input type="text" id="mindmap-topic" class="flex-1 p-2 rounded bg-slate-800 border border-slate-700" placeholder="Enter topic (e.g. Photosynthesis)">
-                <button onclick="generateMindMap()" class="bg-green-600 px-6 rounded hover:bg-green-500">Generate Map</button>
+                <input type="text" id="mindmap-topic" class="flex-1 p-2 rounded bg-slate-800 border border-slate-700 focus:border-green-500 focus:outline-none" placeholder="Enter topic (e.g. Photosynthesis)">
+                <button onclick="generateMindMap()" class="bg-green-600 px-6 rounded hover:bg-green-500 transition font-bold">Generate</button>
             </div>
-            <div id="mermaid-canvas" class="flex-1 bg-white rounded-lg p-4 text-black overflow-auto flex items-center justify-center">
-                <p class="text-slate-500">Enter a topic to generate a diagram...</p>
+            <div id="mermaid-canvas" class="flex-1 bg-white rounded-lg p-4 border border-slate-700 overflow-auto relative">
+                 <div class="mermaid text-center text-black">
+                    graph TD; A[Enter Topic] --> B[Click Generate];
+                </div>
             </div>
         </div>
 
-        <div id="view-files" class="hidden flex-1 p-8">
-            <h2 class="text-2xl font-bold mb-4">Upload Documents</h2>
-            <div class="border-2 border-dashed border-slate-600 rounded-xl p-10 text-center hover:border-purple-500 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
-                <p class="text-slate-400">Click to upload PDF or Image</p>
+        <div id="view-files" class="hidden flex-1 p-8 overflow-auto">
+            <h2 class="text-2xl font-bold mb-6 text-white">📂 Your Documents</h2>
+            <div class="border-2 border-dashed border-slate-600 rounded-xl p-10 text-center hover:border-purple-500 transition cursor-pointer mb-8 bg-slate-800/50" onclick="document.getElementById('file-upload').click()">
+                <p class="text-slate-400 text-lg">Click to upload PDF or Image</p>
                 <input type="file" id="file-upload" class="hidden" onchange="uploadFile()">
             </div>
-            <p id="upload-status" class="mt-4 text-center text-sm"></p>
+            <div id="file-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <div id="view-graph" class="hidden flex-1 flex-col h-full relative bg-black">
+            <div id="3d-graph" class="w-full h-full"></div>
+            <div class="absolute top-4 left-4 bg-slate-900/80 p-3 rounded border border-slate-700 backdrop-blur-sm pointer-events-none">
+                <p class="text-xs text-purple-400 font-bold uppercase mb-1">Controls</p>
+                <p class="text-xs text-slate-400">Left Click: Rotate</p>
+                <p class="text-xs text-slate-400">Right Click: Pan</p>
+                <p class="text-xs text-slate-400">Scroll: Zoom</p>
+            </div>
         </div>
 
     </div>
@@ -64,7 +84,6 @@
         const BASE_URL = "http://127.0.0.1:8000";
         const token = localStorage.getItem("access_token");
 
-        // Auth Check
         if (!token) window.location.href = "login.html";
 
         function logout() {
@@ -72,97 +91,79 @@
             window.location.href = "login.html";
         }
 
-        // View Switching
+        // --- NAVIGATION ---
         function setView(viewName) {
-            ['chat', 'mindmap', 'files'].forEach(v => {
+            ['chat', 'mindmap', 'files', 'graph'].forEach(v => {
                 document.getElementById(`view-${v}`).classList.add('hidden');
             });
-            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+            const selected = document.getElementById(`view-${viewName}`);
+            selected.classList.remove('hidden');
+
+            if (viewName === 'files') loadFiles();
+            if (viewName === 'graph') loadGraph();
         }
 
-        // --- Feature 1: Chat ---
+        // --- CHAT ---
         async function sendMessage() {
             const input = document.getElementById('chat-input');
             const text = input.value;
             if (!text) return;
-
-            // Add User Message
+            
             const box = document.getElementById('chat-box');
-            box.innerHTML += `<div class="user-msg p-3 rounded-lg max-w-xl mb-2">${text}</div>`;
+            box.innerHTML += `<div class="p-3 rounded-lg max-w-xl mb-2 text-white bg-blue-600 self-end">${text}</div>`;
             input.value = "";
             box.scrollTop = box.scrollHeight;
 
             try {
                 const res = await fetch(`${BASE_URL}/ask`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ question: text })
                 });
-
                 const data = await res.json();
                 
-                // Format Sources
                 let sourceHtml = "";
-                if(data.sources && data.sources.length > 0) {
-                    sourceHtml = `<div class="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">Sources: ${data.sources.join(', ')}</div>`;
+                if(data.sources && data.sources.length) {
+                    sourceHtml = `<div class="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">📚 Sources: ${data.sources.join(', ')}</div>`;
                 }
 
-                box.innerHTML += `<div class="ai-msg p-3 rounded-lg max-w-xl mb-2">${data.answer} ${sourceHtml}</div>`;
+                box.innerHTML += `<div class="p-3 rounded-lg max-w-xl mb-2 text-slate-200 bg-slate-800 border border-slate-700 self-start shadow-md">${data.answer} ${sourceHtml}</div>`;
                 box.scrollTop = box.scrollHeight;
-
             } catch (err) {
-                console.error(err);
                 alert("Error connecting to AI");
             }
         }
+        function handleEnter(e) { if (e.key === 'Enter') sendMessage(); }
 
-        function handleEnter(e) {
-            if (e.key === 'Enter') sendMessage();
-        }
-
-        // --- Feature 2: Mind Map ---
+        // --- MIND MAP ---
         mermaid.initialize({ startOnLoad: true });
-
         async function generateMindMap() {
             const topic = document.getElementById('mindmap-topic').value;
             const container = document.getElementById('mermaid-canvas');
-            container.innerHTML = "Generating...";
+            container.innerHTML = "<p class='text-center p-10 text-black'>Generating Diagram...</p>";
 
             try {
                 const res = await fetch(`${BASE_URL}/generate_mindmap`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ topic: topic })
                 });
-
                 const data = await res.json();
-                
-                // Render Mermaid
                 container.innerHTML = `<div class="mermaid">${data.mermaid_code}</div>`;
                 mermaid.init(undefined, document.querySelectorAll('.mermaid'));
-
             } catch (err) {
-                container.innerHTML = "Error generating map.";
+                container.innerHTML = "<p class='text-red-500 text-center'>Error generating map.</p>";
             }
         }
 
-        // --- Feature 3: Upload ---
+        // --- FILE UPLOAD ---
         async function uploadFile() {
             const fileInput = document.getElementById('file-upload');
             const file = fileInput.files[0];
-            const status = document.getElementById('upload-status');
-
             if (!file) return;
 
             const formData = new FormData();
             formData.append('file', file);
-            status.innerText = "Uploading & Indexing...";
 
             try {
                 const res = await fetch(`${BASE_URL}/upload`, {
@@ -170,16 +171,74 @@
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
                 });
-                
                 if(res.ok) {
-                    status.innerText = "✅ Upload Successful!";
-                    status.className = "mt-4 text-center text-sm text-green-400";
+                    alert("✅ Uploaded!");
+                    loadFiles(); 
                 } else {
-                    status.innerText = "❌ Upload Failed";
-                    status.className = "mt-4 text-center text-sm text-red-400";
+                    alert("❌ Upload Failed");
                 }
+            } catch (err) { alert("Network Error"); }
+        }
+
+        // --- LOAD FILES ---
+        async function loadFiles() {
+            const list = document.getElementById('file-list');
+            list.innerHTML = "<p class='text-slate-500'>Loading...</p>";
+            try {
+                const res = await fetch(`${BASE_URL}/files`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await res.json();
+                
+                list.innerHTML = "";
+                if (!data.files || data.files.length === 0) {
+                    list.innerHTML = "<p class='text-slate-500'>No files yet.</p>";
+                    return;
+                }
+                
+                data.files.forEach(file => {
+                    const icon = file.endsWith('.pdf') ? '📄' : '🖼️';
+                    list.innerHTML += `
+                        <div class="bg-slate-800 p-4 rounded border border-slate-700 flex items-center gap-3 hover:border-purple-500 transition">
+                            <span class="text-2xl">${icon}</span>
+                            <span class="truncate font-mono text-sm">${file}</span>
+                        </div>`;
+                });
+            } catch (err) { list.innerHTML = "Error loading files."; }
+        }
+
+        // --- GRAPH VIEW (THE FIX) ---
+        let graphInstance = null;
+        async function loadGraph() {
+            const container = document.getElementById('3d-graph');
+            
+            // Wait 100ms to ensure the DIV is visible (rendering fix)
+            await new Promise(r => setTimeout(r, 100));
+
+            try {
+                const res = await fetch(`${BASE_URL}/graph_data`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await res.json();
+
+                // If graph doesn't exist, create it. If it does, update data.
+                if (!graphInstance) {
+                    graphInstance = ForceGraph3D()
+                        (container)
+                        .graphData(data)
+                        .nodeAutoColorBy('group')
+                        .nodeLabel('id')
+                        .nodeResolution(16) // Higher quality spheres
+                        .linkDirectionalParticles(2)
+                        .linkDirectionalParticleSpeed(0.005)
+                        .backgroundColor('#000000');
+                } else {
+                    graphInstance.graphData(data);
+                }
+                
+                // Force a resize calculation
+                graphInstance.width(container.clientWidth);
+                graphInstance.height(container.clientHeight);
+
             } catch (err) {
-                status.innerText = "❌ Network Error";
+                console.error(err);
+                container.innerHTML = `<p class='text-red-500 text-center mt-20'>Error: ${err.message}</p>`;
             }
         }
     </script>
