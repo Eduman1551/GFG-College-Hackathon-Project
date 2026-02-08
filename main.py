@@ -341,7 +341,10 @@ async def generate_mindmap(
     topic = payload.topic
 
     # 1. Retrieve context
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    retriever = vectorstore.as_retriever(
+    search_type="similarity_score_threshold",
+    search_kwargs={"score_threshold": 0.5, "k": 5}
+)
     docs = retriever.invoke(topic)
     context = "\n\n".join([d.page_content for d in docs])
 
